@@ -134,8 +134,10 @@ class Diffusion(L.LightningModule):
       self.backbone = models.unet.UNet(
         self.config, vocab_size=self.vocab_size)
     elif self.config.backbone == 'hf_dit':
+      # self.backbone = transformers.AutoModelForMaskedLM.from_pretrained(
+      #   "kuleshov-group/udlm-qm9", trust_remote_code=True)
       self.backbone = transformers.AutoModelForMaskedLM.from_pretrained(
-        config.model.pretrained_model_name_or_path, trust_remote_code=True)
+        "/idiap/temp/mnafez/research/discrete-diffusion-guidance/weights/kuleshov-group/udlm-lm1b", trust_remote_code=True)
     else:
       raise NotImplementedError(
         f"Backbone {self.config.backbone} not implemented.")
@@ -1122,7 +1124,6 @@ class Diffusion(L.LightningModule):
       self.config.sampling.batch_size,
       self.config.model.length
     ).to(self.device)
-
     timesteps = torch.linspace(
       1, eps, self.config.sampling.steps + 1, device=self.device)
     dt = (1 - eps) / self.config.sampling.steps
@@ -1161,7 +1162,8 @@ class Diffusion(L.LightningModule):
           time_conditioning=sigma_t,
           move_chance_t=move_chance_t,
           move_chance_s=move_chance_s,
-          cache=cache)
+          cache=cache,
+          denoising_step=i)
       else:
         if self.config.guidance.method == 'cfg':
           xs, q_xs, cache = self._cfg_denoise(
@@ -1215,12 +1217,15 @@ class Diffusion(L.LightningModule):
     move_chance_t: torch.tensor,
     move_chance_s: torch.tensor,
     cache: typing.Optional[typing.Dict[str, torch.Tensor]] = None,
+    denoising_step: torch.LongTensor = None, 
   ) -> typing.Tuple[torch.tensor, torch.tensor, typing.Dict[str, torch.tensor]]:
 
     # Compute x_theta
     if cache is not None:
       log_x_theta = cache['log_x_theta']
     else:
+      # log_x_theta = self.forward(xt, time_conditioning,
+      #                            cond=None, denoising_step=denoising_step)
       log_x_theta = self.forward(xt, time_conditioning,
                                  cond=None)
       if self.config.sampling.use_float64:

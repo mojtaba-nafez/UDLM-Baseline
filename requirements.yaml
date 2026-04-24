@@ -1,4 +1,4 @@
-name: discdiff
+name: udml
 channels:
   - pytorch
   - nvidia

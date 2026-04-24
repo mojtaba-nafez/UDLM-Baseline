@@ -162,6 +162,8 @@ def _gen_ppl_eval(config, tokenizer):
   pretrained = _load_from_checkpoint(
     config=config, tokenizer=tokenizer)
   pretrained.eval()
+  tok_bos_token = tokenizer.bos_token if tokenizer.bos_token is not None else tokenizer.cls_token
+  # print("tok_bos_token: ", tok_bos_token) #  [CLS]
   samples = []
   for _ in tqdm(range(config.sampling.num_sample_batches),
                 desc='Gen. batches', leave=False):
@@ -171,7 +173,6 @@ def _gen_ppl_eval(config, tokenizer):
 
   # Replace CLS token with BOS token (if applicable) and
   # remove padding and mask tokens
-  tok_bos_token = tokenizer.bos_token if tokenizer.bos_token is not None else tokenizer.cls_token
   samples = [
     s.replace('[PAD]', '').replace('[MASK]', '').strip()
     for s in samples
@@ -234,7 +235,7 @@ def main(config):
 
   logger = utils.get_logger(__name__)
   tokenizer = dataloader.get_tokenizer(config)
-
+  print("config.eval.checkpoint_path: ", config.eval.checkpoint_path)
   if config.mode == 'gen_ppl_eval':
     _gen_ppl_eval(config, tokenizer)
   elif config.mode == 'ppl_eval':
