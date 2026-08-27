@@ -89,6 +89,8 @@ class Diffusion(L.LightningModule):
     self.importance_sampling = config.training.importance_sampling
     self.change_of_variables = config.training.change_of_variables
     self.noise = noise_schedule.get_noise(config, dtype=self.dtype)
+    self.clean_conf_lambda = getattr(config.training, 'clean_conf_lambda', 0.0)  # 0 = off, exact current behavior
+    print("self.clean_conf_lambda", self.clean_conf_lambda)
 
     if self.config.is_vision:
         self.mask_index = getattr(tokenizer, 'mask_token_id', -1)
@@ -171,6 +173,7 @@ class Diffusion(L.LightningModule):
     self.fast_forward_batches = None
 
     self._validate_configuration()
+    
 
   def _validate_configuration(self):
     assert not (self.change_of_variables
@@ -596,6 +599,7 @@ class Diffusion(L.LightningModule):
       )
       term2 = term2.sum(dim=-1, keepdim=True)  # B, L, 1
 
+      '''
       diffusion_loss = (coeff * (term1 - term2)).squeeze()  # B, L
       reconstruction_loss = self._reconstruction_loss(
         x0, cond=cond)
@@ -613,6 +617,37 @@ class Diffusion(L.LightningModule):
         'diffusion_loss': diffusion_loss,
         'loss': diffusion_loss if getattr(self.config, 'zero_recon_loss', False)
                 else diffusion_loss + reconstruction_loss
+      }
+      '''
+      diffusion_loss = (coeff * (term1 - term2)).squeeze()  # B, L
+      reconstruction_loss = self._reconstruction_loss(
+        x0, cond=cond)
+
+      # Directly supervises confidence in x0 at positions where xt == x0 -- these are exactly
+      # where term2 above vanishes as alpha_t -> 1 (each (x_bar/x_bar_zt) factor -> 0 like
+      # x*log(x)). Reuses model_output already computed for this forward pass. diffusion_loss
+      # itself (returned/logged below) is left untouched -- only `loss`, the actual gradient
+      # target, is affected.
+      clean_conf_loss = 0.
+      if self.clean_conf_lambda > 0 and self.training:
+        is_clean = (xt == x0).float()
+        logp_x0 = model_output.gather(-1, x0[:, :, None]).squeeze(-1)
+        clean_conf_loss = self.clean_conf_lambda * is_clean * (-logp_x0)
+
+      if self.training and self.config.training.use_simple_ce_loss:
+        return {
+          'recon_loss': reconstruction_loss,
+          'diffusion_loss': diffusion_loss,
+          'loss': -torch.gather(
+            input=model_output,
+            dim=-1,
+            index=x0[:, :, None]).squeeze(-1)
+        }
+      return {
+        'recon_loss': reconstruction_loss,
+        'diffusion_loss': diffusion_loss,
+        'loss': (diffusion_loss if getattr(self.config, 'zero_recon_loss', False)
+                else diffusion_loss + reconstruction_loss) + clean_conf_loss
       }
     else:
       raise NotImplementedError(

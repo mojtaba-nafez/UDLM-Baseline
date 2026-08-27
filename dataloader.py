@@ -293,16 +293,43 @@ def get_dataset(
       max_length=block_size,
       rc_aug=False,  # TODO: find way to pass this
       add_special_tokens=add_special_tokens)
+      
+  elif dataset_name == 'openwebtext-train':
+    dataset = datasets.load_dataset(
+        'Skylion007/openwebtext',
+        split='train[:-100000]',
+        # split='train[:-1000]',
+        cache_dir=cache_dir,
+        streaming=streaming,
+    )
+
+  elif dataset_name == 'openwebtext-valid':
+      dataset = datasets.load_dataset(
+          'Skylion007/openwebtext',
+          split='train[-100000:]',
+          # split='train[-200:]',
+          cache_dir=cache_dir,
+          streaming=streaming,
+      )
+
   else:
     dataset = datasets.load_dataset(
       dataset_name,
       cache_dir=cache_dir,
       streaming=streaming)
 
-  if dataset_name == 'qm9':
-    data = dataset
+  # if dataset_name == 'qm9':
+  #   data = dataset
+  # else:
+  #   data = dataset[mode]
+  if dataset_name in {
+      'qm9',
+      'openwebtext-train',
+      'openwebtext-valid',
+  }:
+      data = dataset
   else:
-    data = dataset[mode]
+      data = dataset[mode]
 
   if dataset_name == 'lm1b':
     detokenizer = lm1b_detokenizer

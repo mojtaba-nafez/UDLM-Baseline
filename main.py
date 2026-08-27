@@ -15,6 +15,7 @@ import dataloader
 import diffusion
 import eval_utils
 import utils
+import numpy as np
 
 omegaconf.OmegaConf.register_new_resolver(
   'cwd', os.getcwd)
@@ -157,6 +158,19 @@ def _train(config, logger, tokenizer,
     logger=wandb_logger)
   trainer.fit(model, train_ds, valid_ds, ckpt_path=ckpt_path)
 
+def empirical_entropy_per_sample(items):
+    entropies = []
+    for row in items:
+        row = torch.tensor(row)
+        counts = torch.unique(
+            row,
+            return_counts=True,
+            sorted=True
+        )[1]
+        probs = counts.float() / counts.sum()
+        entropy = torch.special.entr(probs).sum().item()
+        entropies.append(entropy)
+    return entropies
 
 def _gen_ppl_eval(config, tokenizer):
   pretrained = _load_from_checkpoint(
@@ -197,6 +211,7 @@ def _gen_ppl_eval(config, tokenizer):
     max_length=config.model.length,
     padding='max_length',
     truncation=True)['input_ids']
+  sample_level_entropies = empirical_entropy_per_sample(tokens)
   _, counts = torch.unique(
     torch.tensor(tokens), return_counts=True, sorted=False)
   entropy = torch.special.entr(
@@ -206,11 +221,12 @@ def _gen_ppl_eval(config, tokenizer):
       'generative_ppl': generative_ppl,
       'entropy': entropy,
       'generated_seqs': samples,
+      'sample_level_entropies': np.mean(sample_level_entropies)
     },
       f, indent=4) # type: ignore
-  print(f"Entropy: {entropy:0.3f}")
-  print(f"Gen. PPL: {generative_ppl:0.3f}")
-
+  print(f"Entropy             : {entropy:0.3f}")
+  print(f"Gen. PPL            : {generative_ppl:0.3f}")
+  print(f"Sample-Level Entropy: " f"{np.mean(sample_level_entropies):0.3f}")
 
 def _ppl_eval(config, tokenizer):
   print(f"Evaluating perplexity on {config.data.valid}.")
