@@ -7,3 +7,5 @@ outputs/
 watch_folder/
 weights/
 config_tree.txt
+
+logs-eval-slurm/

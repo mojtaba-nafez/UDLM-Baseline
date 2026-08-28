@@ -7,6 +7,19 @@ python -u -m random_perturbation_experiment hydra.output_subdir=null hydra.run.d
 	sampling.use_cache=False sampling.use_float64=False \
 	eval.generated_samples_path="$PWD/outputs/lm1b/udlm/samples-lm1b-gen-ppl-eval-float64-False_add-CLS_T-256_seed-1-Original.json" \
 	+eval.generative_ppl_model_name_or_path="gpt2-large"
+
+
+
+
+python -u -m random_perturbation_experiment hydra.output_subdir=null hydra.run.dir="$PWD" hydra/job_logging=disabled hydra/hydra_logging=disabled seed=1 \
+	mode="gen_ppl_eval" eval.checkpoint_path="outputs/owt/udlm_clean_loss_term/checkpoints/last.ckpt" data=openwebtext-split backbone=dit \
+	 model.length=128 zero_recon_loss=True training.guidance=null \
+	parameterization=d3pm diffusion=uniform time_conditioning=True T=0 \
+	sampling.num_sample_batches=32 sampling.batch_size=32 sampling.steps=256 \
+	sampling.use_cache=False sampling.use_float64=False \
+	eval.generated_samples_path="$PWD/outputs/lm1b/udlm/samples-lm1b-gen-ppl-eval-float64-False_add-CLS_T-256_seed-1-Original.json" \
+	+eval.generative_ppl_model_name_or_path="gpt2-large"
+	
 '''
 import json
 import os

@@ -90,7 +90,11 @@ class Diffusion(L.LightningModule):
     self.change_of_variables = config.training.change_of_variables
     self.noise = noise_schedule.get_noise(config, dtype=self.dtype)
     self.clean_conf_lambda = getattr(config.training, 'clean_conf_lambda', 0.0)  # 0 = off, exact current behavior
+    self.clean_conf_time_power = getattr(config.training, 'clean_conf_time_power', 0.0)  # 0 = flat (what you already ran)
+    self.clean_conf_t_threshold = getattr(config.training, 'clean_conf_t_threshold', 0.7)    
+    print("self.clean_conf_time_power", self.clean_conf_time_power)
     print("self.clean_conf_lambda", self.clean_conf_lambda)
+    print("self.clean_conf_t_threshold", self.clean_conf_t_threshold)
 
     if self.config.is_vision:
         self.mask_index = getattr(tokenizer, 'mask_token_id', -1)
@@ -628,11 +632,24 @@ class Diffusion(L.LightningModule):
       # x*log(x)). Reuses model_output already computed for this forward pass. diffusion_loss
       # itself (returned/logged below) is left untouched -- only `loss`, the actual gradient
       # target, is affected.
+      '''
       clean_conf_loss = 0.
       if self.clean_conf_lambda > 0 and self.training:
         is_clean = (xt == x0).float()
         logp_x0 = model_output.gather(-1, x0[:, :, None]).squeeze(-1)
         clean_conf_loss = self.clean_conf_lambda * is_clean * (-logp_x0)
+      '''
+
+      clean_conf_loss = 0.
+      if self.clean_conf_lambda > 0 and self.training:
+        is_clean = (xt == x0).float()
+        logp_x0 = model_output.gather(-1, x0[:, :, None]).squeeze(-1)
+        # (1 - t) == alpha_t in this branch: ~0 at high noise (early in generation),
+        # ~1 at low noise (late in generation). t is (B,) -- one value per example, so this
+        # has to be a per-example mask, not a Python `if`.
+        active = (t < self.clean_conf_t_threshold).float()  # (B,) -- 1 below the cutoff, else 0
+        time_weight = (1. - t).clamp(min=0.) ** self.clean_conf_time_power
+        clean_conf_loss = self.clean_conf_lambda * (active * time_weight)[:, None] * is_clean * (-logp_x0)
 
       if self.training and self.config.training.use_simple_ce_loss:
         return {

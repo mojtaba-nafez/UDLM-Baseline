@@ -91,6 +91,15 @@ def _print_batch(train_ds, valid_ds, tokenizer, k=64):
     print(f'Last {k} tokens:', tokenizer.decode(last))
     print('ids:', last)
 
+def print_model_parameters(model):
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    print(f"Total parameters:     {total_params:,}")
+    print(f"Trainable parameters: {trainable_params:,}")
+    print(f"Non-trainable params: {total_params - trainable_params:,}")
+    
+    return total_params
 
 def _train(config, logger, tokenizer,
            train_classifier=False):
@@ -150,6 +159,8 @@ def _train(config, logger, tokenizer,
     model = diffusion.Diffusion(
       config, tokenizer=valid_ds.tokenizer)
 
+  print_model_parameters(model)
+
   trainer = hydra.utils.instantiate(
     config.trainer,
     default_root_dir=os.getcwd(),
@@ -176,6 +187,7 @@ def _gen_ppl_eval(config, tokenizer):
   pretrained = _load_from_checkpoint(
     config=config, tokenizer=tokenizer)
   pretrained.eval()
+  print_model_parameters(pretrained)
   tok_bos_token = tokenizer.bos_token if tokenizer.bos_token is not None else tokenizer.cls_token
   # print("tok_bos_token: ", tok_bos_token) #  [CLS]
   samples = []

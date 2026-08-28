@@ -67,3 +67,18 @@ python -u -m main \
   hydra.run.dir="${PWD}/outputs/lm1b/udlm" \
   +training.clean_conf_lambda=0.1
 ```
+
+
+```bash
+sbatch -p gpu -A balm /idiap/temp/mnafez/research/discrete-diffusion-guidance/scripts/udlm_clean_loss_term_idiap.sh
+```
+
+
+```bash
+sbatch -p gpu -A balm  /idiap/temp/mnafez/research/discrete-diffusion-guidance/scripts/udlm_idiap.sh
+```
+
+
+```bash
+sbatch -p gpu -A balm  /idiap/temp/mnafez/research/discrete-diffusion-guidance/scripts/udlm_time_dependent_clean_loss_term_idiap.sh
+```
