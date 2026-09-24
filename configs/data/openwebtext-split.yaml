@@ -4,7 +4,7 @@ valid: openwebtext-valid
 modality: text
 
 tokenizer_name_or_path: gpt2
-cache_dir: /idiap/temp/mnafez/research/duo/data
+cache_dir: /mnt/home/NLU/UDLM-Baseline/data
 
 wrap: True
 streaming: False

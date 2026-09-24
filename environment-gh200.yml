@@ -1,0 +1,23 @@
+name: udlm
+
+channels:
+  - nvidia/label/cuda-12.9.2
+  - defaults
+
+dependencies:
+  # Python
+  - python=3.11
+
+  # Packaging
+  - pip
+  - setuptools
+  - wheel
+
+  # CUDA compiler + complete development libraries
+  - cuda-nvcc=12.9.86
+  - cuda-libraries-dev=12.9.2
+
+  # Interactive / Jupyter basics
+  - ipykernel=6.29.5
+  - ipython
+  - ipywidgets=8.1.2

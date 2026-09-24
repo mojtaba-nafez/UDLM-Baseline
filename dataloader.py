@@ -544,7 +544,15 @@ def get_dataloaders(config, tokenizer, skip_train=False,
       num_workers=config.loader.num_workers,
       pin_memory=config.loader.pin_memory,
       shuffle=not config.data.streaming,
-      persistent_workers=config.loader.persistent_workers
+      # persistent_workers=config.loader.persistent_workers,
+      persistent_workers=(
+              config.loader.persistent_workers
+              and config.loader.num_workers > 0
+          ),
+      multiprocessing_context=(
+          "spawn" if config.loader.num_workers > 0 else None
+      ),
+
     )
     train_loader.tokenizer = tokenizer
   if skip_valid:
@@ -562,7 +570,15 @@ def get_dataloaders(config, tokenizer, skip_train=False,
       num_workers=config.loader.num_workers,
       pin_memory=config.loader.pin_memory,
       shuffle=shuffle_valid,
-      generator=generator)
+      generator=generator,
+      persistent_workers=(
+        config.loader.persistent_workers
+          and config.loader.num_workers > 0
+      ),
+      multiprocessing_context=(
+          "spawn" if config.loader.num_workers > 0 else None
+      ),
+    )
     # Will be used in generative perplexity calculation
     valid_loader.tokenizer = tokenizer
 

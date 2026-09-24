@@ -1,3 +1,15 @@
+```bash
+srun \
+  --partition=debug \
+  --account=a0236 \
+  --environment=gidd \
+  --nodes=1 \
+  --ntasks=1 \
+  --gpus-per-task=1 \
+  --cpus-per-task=8 \
+  --time=00:30:00 \
+  --pty bash
+```
 
 # Simple Guidance Mechanisms for Discrete Diffusion Models
 

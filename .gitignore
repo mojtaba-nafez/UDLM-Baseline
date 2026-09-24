@@ -9,3 +9,8 @@ weights/
 config_tree.txt
 
 logs-eval-slurm/
+
+outputs
+data
+logs-train-slurm
+udlm

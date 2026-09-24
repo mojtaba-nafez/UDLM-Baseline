@@ -1,4 +1,4 @@
-name: udml
+name: udlm
 channels:
   - pytorch
   - nvidia

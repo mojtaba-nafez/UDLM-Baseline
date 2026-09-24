@@ -293,7 +293,14 @@ class Classifier(L.LightningModule):
           pin_memory=self.config.loader.pin_memory,
           sampler=dl_sampler,
           shuffle=False,
-          persistent_workers=self.config.loader.persistent_workers
+          # persistent_workers=self.config.loader.persistent_workers,
+          persistent_workers=(
+              self.config.loader.persistent_workers
+              and self.config.loader.num_workers > 0
+          ),
+          multiprocessing_context=(
+              "spawn" if self.config.loader.num_workers > 0 else None
+          ),
         ))
     self.trainer.fit_loop._combined_loader.flattened = updated_dls
 
