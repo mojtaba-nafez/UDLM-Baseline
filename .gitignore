@@ -14,3 +14,11 @@ outputs
 data
 logs-train-slurm
 udlm
+logs/
+our-trained-checkpoints/
+nelbo_four_cases.pdf
+nelbo_split_udlm.json
+greedy-tail-ablation-mauve-result/
+greedy-tail-ablation-result/
+rand_perturb_exp/
+validation_loss_result/

@@ -497,7 +497,13 @@ class Diffusion(L.LightningModule):
         x)
     raise NotImplementedError(
       f"Diffusion type {self.diffusion} not implemented.")
-
+  
+  def _accumulate_split(self, loss, model_output, xt, x0, t):
+    nb = self.split_S.shape[1]; b = (t * nb).long().clamp(0, nb - 1); mask = torch.ones_like(loss) if self._valid_mask is None else self._valid_mask.float()
+    right = (model_output.argmax(-1) == x0).float(); clean = (xt == x0).float() * mask; corr = (xt != x0).float() * mask
+    for k, m in enumerate([clean * right, clean * (1 - right), corr * right, corr * (1 - right)]):  # clean-right, clean-wrong, corr-right, corr-wrong
+      self.split_S[k].index_add_(0, b, (loss * m).sum(-1).double()); self.split_N[k].index_add_(0, b, m.sum(-1).double())
+  
   def _forward_pass_diffusion(self, x0, cond=None):
     t = self._sample_t(x0.shape[0])
     if self.T > 0:
@@ -658,6 +664,9 @@ class Diffusion(L.LightningModule):
         time_weight = (1. - t).clamp(min=0.) ** self.clean_conf_time_power
         clean_conf_loss = self.clean_conf_lambda * (active * time_weight)[:, None] * is_clean * (-logp_x0)
 
+      base = diffusion_loss if getattr(self.config, 'zero_recon_loss', False) else diffusion_loss + reconstruction_loss  # exactly the loss PPL uses, without CTR-Reg
+      if not self.training and getattr(self, 'split_S', None) is not None: self._accumulate_split(base.detach(), model_output, xt, x0, t)
+
       if self.training and self.config.training.use_simple_ce_loss:
         return {
           'recon_loss': reconstruction_loss,
@@ -708,6 +717,7 @@ class Diffusion(L.LightningModule):
     (input_tokens, output_tokens,
      attention_mask) = self._maybe_sub_sample(
       x0, attention_mask)
+    self._valid_mask = attention_mask
 
     recon_loss, diffusion_loss = None, None
 
@@ -1267,7 +1277,61 @@ class Diffusion(L.LightningModule):
         # Disable caching
         cache = None
       xt = xs
+    
+    
+    # noise_removal = getattr(self.config.sampling, 'noise_removal', 'none')
+    # if noise_removal == 'greedy':
+    #     print(f"noise_removal: {noise_removal}")
+    #     t0 = timesteps[-1] * torch.ones(xt.shape[0], 1, device=self.device)
+    #     sigma_t0, _ = self.noise(t0)
+    #     xt = self.forward(xt, sigma_t0, cond=cond).argmax(dim=-1)
+    
+    
+    
+    noise_removal = getattr(self.config.sampling, 'noise_removal', 'none')
+    if noise_removal == 'greedy':
+        n_steps = int(getattr(self.config.sampling, 'noise_removal_steps', 1))
+        t0 = timesteps[-1] * torch.ones(xt.shape[0], 1, device=self.device)
+        sigma_t0, _ = self.noise(t0)
+        for _ in range(n_steps):
+            x_next = self.forward(xt, sigma_t0, cond=cond).argmax(dim=-1)
+            if torch.equal(x_next, xt):   # fixed point; further steps are no-ops
+                break
+            xt = x_next
+
+    '''
+    noise_removal = getattr(self.config.sampling, 'noise_removal', 'none')
+    if noise_removal == 'greedy':
+        n_steps = int(getattr(self.config.sampling, 'noise_removal_steps', 1))
+        t0 = timesteps[-1] * torch.ones(xt.shape[0], 1, device=self.device)
+        sigma_t0, _ = self.noise(t0)
+        step_changes = [0.0]  # index 0: before any greedy pass, 0 changes by definition
+        for step_idx in range(1, n_steps + 1):
+            x_next = self.forward(xt, sigma_t0, cond=cond).argmax(dim=-1)
+            n_changed = (x_next != xt).sum(dim=-1).float()  # (batch,) changed positions per sample
+            step_changes.append(n_changed.mean().item())
+            if torch.equal(x_next, xt):   # fixed point; further steps are no-ops
+                step_changes.extend([0.0] * (n_steps - step_idx))
+                break
+            xt = x_next
+
+        if not hasattr(self, 'greedy_step_changes_log'): self.greedy_step_changes_log = []
+        self.greedy_step_changes_log.append(step_changes)
+        print(self.greedy_step_changes_log)
+        self.save_greedy_change_table(out_path='greedy_step_changes_.csv', row_label='Duo')
+        '''
+
     return xt
+  def save_greedy_change_table(self, out_path='greedy_step_changes.csv', row_label='Duo'):
+      import csv, os, numpy as np
+      arr = np.array(self.greedy_step_changes_log)
+      avg = arr.mean(axis=0)
+      header = ['config'] + [str(i) for i in range(arr.shape[1])]
+      write_header = not os.path.exists(out_path)
+      with open(out_path, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if write_header: writer.writerow(header)
+        writer.writerow([row_label] + avg.tolist())
 
   def _ddpm_denoise(
     self,

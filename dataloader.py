@@ -22,7 +22,53 @@ import utils
 LOGGER = utils.get_logger(__name__)
 
 
-# noinspection RegExpRedundantEscape
+
+def wt_detokenizer(string):
+  # contractions
+  string = string.replace("s '", "s'")
+  string = re.sub(r"/' [0-9]/", r"/'[0-9]/", string)
+  # number separators
+  string = string.replace(" @-@ ", "-")
+  string = string.replace(" @,@ ", ",")
+  string = string.replace(" @.@ ", ".")
+  # punctuationdataloader
+  string = string.replace(" : ", ": ")
+  string = string.replace(" ; ", "; ")
+  string = string.replace(" . ", ". ")
+  string = string.replace(" ! ", "! ")
+  string = string.replace(" ? ", "? ")
+  string = string.replace(" , ", ", ")
+  # double brackets
+  string = re.sub(r"\(\s*([^\)]*?)\s*\)", r"(\1)", string)
+  string = re.sub(r"\[\s*([^\]]*?)\s*\]", r"[\1]", string)
+  string = re.sub(r"{\s*([^}]*?)\s*}", r"{\1}", string)
+  string = re.sub(r"\"\s*([^\"]*?)\s*\"", r'"\1"', string)
+  string = re.sub(r"'\s*([^']*?)\s*'", r"'\1'", string)
+  # miscellaneous
+  string = string.replace("= = = =", "====")
+  string = string.replace("= = =", "===")
+  string = string.replace("= =", "==")
+  string = string.replace(" " + chr(176) + " ", chr(176))
+  string = string.replace(" \n", "\n")
+  string = string.replace("\n ", "\n")
+  string = string.replace(" N ", " 1 ")
+  string = string.replace(" 's", "'s")
+  return string
+
+def ptb_detokenizer(x):
+  x = x.replace(" 's", "'s")
+  x = x.replace("s ' ", "s' ")
+  x = x.replace(" n't", "n't")
+  x = x.replace(" \n ", "\n")
+  x = x.replace("\\/", "/")
+  for _ in range(10):
+      x = x.replace(" N ", " 1 ")
+  x = x.replace("$ 1", "$1")
+  x = x.replace("# 1", "#1")
+  x = x.replace("<unk>", "?")
+  return x
+
+
 def lm1b_detokenizer(x):
   x = x.replace('http : / / ', 'http://')
   x = x.replace('https : / / ', 'https://')
@@ -44,6 +90,20 @@ def lm1b_detokenizer(x):
   x = x.replace('$ ', '$')
   x = x.replace('£ ', '£')
   return x
+
+
+def lambada_detokenizer(text):
+  text = text.replace("“", '"')
+  text = text.replace("”", '"')
+  return '\n'+text.strip()
+
+
+def scientific_papers_detokenizer(x):
+  x = wt_detokenizer(x)
+  x = lm1b_detokenizer(x)
+  return x
+
+
 
 
 class Text8Tokenizer(transformers.PreTrainedTokenizer):
@@ -311,6 +371,10 @@ def get_dataset(
           cache_dir=cache_dir,
           streaming=streaming,
       )
+  elif dataset_name == 'wikitext103':
+    dataset = datasets.load_dataset('wikitext', name='wikitext-103-raw-v1', cache_dir=cache_dir, streaming=streaming)
+  elif dataset_name.startswith('scientific_papers'):
+    dataset = datasets.load_dataset('scientific_papers', dataset_name.split('_')[-1], cache_dir=cache_dir, streaming=streaming)
 
   else:
     dataset = datasets.load_dataset(
@@ -333,6 +397,10 @@ def get_dataset(
 
   if dataset_name == 'lm1b':
     detokenizer = lm1b_detokenizer
+  elif dataset_name.startswith('wikitext'):
+    detokenizer = wt_detokenizer
+  elif dataset_name.startswith('scientific_papers'):
+    detokenizer = scientific_papers_detokenizer
   else:
     detokenizer = None
 
@@ -353,6 +421,8 @@ def get_dataset(
       text = example['canonical_smiles']
     elif dataset_name == 'ten_species':
       text = example['sequence']
+    elif 'scientific_papers' in dataset_name:
+      text = example['article']
     else:
       text = example['text']
 
@@ -508,9 +578,7 @@ def get_dataloaders(config, tokenizer, skip_train=False,
         label_col=label_col,
         label_threshold=getattr(config.data,
                                 'label_col_pctile', None))
-  if config.data.valid in [
-    'text8', 'lm1b', 'amazon_polarity', 'qm9',
-    'ten_species']:
+  if config.data.valid in ['text8', "lm1b-gpt2", 'lm1b', 'ag_news', 'amazon_polarity', 'qm9', 'ten_species']:
     validation_split = 'test'
   else:
     validation_split = 'validation'
@@ -570,6 +638,15 @@ def get_dataloaders(config, tokenizer, skip_train=False,
       num_workers=config.loader.num_workers,
       pin_memory=config.loader.pin_memory,
       shuffle=shuffle_valid,
+      generator=generator,
+      persistent_workers=(
+        config.loader.persistent_workers
+          and config.loader.num_workers > 0
+      ),
+      multiprocessing_context=(
+          "spawn" if config.loader.num_workers > 0 else None
+      ),
+    )
       generator=generator,
       persistent_workers=(
         config.loader.persistent_workers

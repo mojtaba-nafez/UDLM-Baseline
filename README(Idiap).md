@@ -29,6 +29,32 @@ pip install datasets==2.18.0 einops==0.8.0 fsspec==2024.2.0 git-lfs==1.6 h5py==3
 python -u -m main hydra.output_subdir=null hydra.run.dir="$PWD" hydra/job_logging=disabled hydra/hydra_logging=disabled seed=1 mode="gen_ppl_eval" model.pretrained_model_name_or_path="kuleshov-group/udlm-lm1b" data=lm1b backbone=hf_dit model=hf model.length=128 zero_recon_loss=True training.guidance=null parameterization=d3pm diffusion=uniform time_conditioning=True T=0 sampling.num_sample_batches=32 sampling.batch_size=32 sampling.steps=256 sampling.use_cache=False sampling.use_float64=False eval.generated_samples_path="$PWD/outputs/lm1b/udlm/samples-lm1b-gen-ppl-eval-float64-False_add-CLS_T-256_seed-1-Original.json" +eval.generative_ppl_model_name_or_path="gpt2-large"
 ```
 
+```bash
+python -u -m main \
+    hydra.output_subdir=null hydra.run.dir="$PWD" \
+    hydra/job_logging=disabled hydra/hydra_logging=disabled \
+    seed=1 \
+    mode="gen_ppl_eval" \
+    eval.checkpoint_path="/idiap/temp/mnafez/research/discrete-diffusion-guidance/our-trained-checkpoints/owt/checkpoints-cscs-trained/udlm/5-42000.ckpt" \
+    data="openwebtext-split" \
+    backbone=dit \
+    model=small \
+    model.length=512 \
+    zero_recon_loss=True \
+    training.guidance=null \
+    parameterization=d3pm \
+    diffusion=uniform \
+    time_conditioning=True \
+    T=0 \
+    sampling.num_sample_batches=4 \
+    sampling.batch_size=32 \
+    sampling.steps=128 \
+    sampling.use_cache=False \
+    sampling.use_float64=False \
+    eval.generated_samples_path="$PWD/outputs/owt/original2.json" \
+    +eval.generative_ppl_model_name_or_path="gpt2-large"
+```
+
 
 
 # Training
@@ -82,3 +108,10 @@ sbatch -p gpu -A balm  /idiap/temp/mnafez/research/discrete-diffusion-guidance/s
 ```bash
 sbatch -p gpu -A balm  /idiap/temp/mnafez/research/discrete-diffusion-guidance/scripts/udlm_time_dependent_clean_loss_term_idiap.sh
 ```
+
+
+```bash
+sbatch -p gpu -A balm  /idiap/temp/mnafez/research/discrete-diffusion-guidance/scripts/udlm_time_dependent_clean_loss_term_idiap_v2.sh
+```
+
+

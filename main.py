@@ -10,6 +10,7 @@ import rich.tree
 import torch
 from tqdm import tqdm
 
+
 import classifier
 import dataloader
 import diffusion
@@ -189,6 +190,8 @@ def _gen_ppl_eval(config, tokenizer):
   pretrained.eval()
   print_model_parameters(pretrained)
   tok_bos_token = tokenizer.bos_token if tokenizer.bos_token is not None else tokenizer.cls_token
+
+  gen_ppl_eval_batch_size = getattr(config, 'gen_ppl_eval_batch_size', 8)
   # print("tok_bos_token: ", tok_bos_token) #  [CLS]
   samples = []
   for _ in tqdm(range(config.sampling.num_sample_batches),
@@ -214,7 +217,7 @@ def _gen_ppl_eval(config, tokenizer):
   generative_ppl = eval_utils.compute_generative_ppl(
     samples,
     eval_model_name_or_path=config.eval.generative_ppl_model_name_or_path,
-    gen_ppl_eval_batch_size=8,
+    gen_ppl_eval_batch_size=gen_ppl_eval_batch_size,
     max_length=config.model.length)
   tokens = tokenizer.batch_encode_plus(
     samples,
@@ -250,7 +253,13 @@ def _ppl_eval(config, tokenizer):
 
   _, valid_ds = dataloader.get_dataloaders(
     config, tokenizer, skip_train=True, valid_seed=config.seed)
-  ppl = eval_utils.compute_ppl(pretrained, valid_ds)
+  # ppl = eval_utils.compute_ppl(pretrained, valid_ds)
+
+  setup = {'checkpoint_path': config.eval.checkpoint_path, 'valid_dataset': config.data.valid, 'seed': config.seed, 'eval_batch_size': config.loader.eval_batch_size, 'seq_length': config.model.length,
+           'wrap': config.data.wrap, 'noise_schedule': config.noise.type, 'zero_recon_loss': getattr(config, 'zero_recon_loss', False), 'use_ema': not config.eval.disable_ema}
+  ppl = eval_utils.compute_ppl(pretrained, valid_ds, split_path=getattr(config, 'val_loss_save_path', 'nelbo_split_udlm'), setup=setup)
+
+
   print(f"PPL: {ppl:0.3f}")
 
 
